@@ -1,5 +1,5 @@
 import 'dotenv/config';
-import readline from 'node:readline';
+import readline from 'node:readline/promises';
 import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
 import connectDB from '../config/db.js';

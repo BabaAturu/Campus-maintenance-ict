@@ -1,9 +1,10 @@
 import { useState } from 'react'
-import { ArrowLeft, Eye, EyeOff, LockKeyhole, Mail, ShieldCheck } from 'lucide-react'
-import { Link, useNavigate } from 'react-router-dom'
+import { ArrowLeft, CheckCircle2, Eye, EyeOff, LockKeyhole, Mail, ShieldCheck } from 'lucide-react'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import Brand from '../components/Brand.jsx'
 import { roleHomePath } from '../context/authRoles.js'
 import useAuth from '../context/useAuth.js'
+import useLanguage from '../context/LanguageContext.jsx'
 
 function LoginPage() {
   const [showPassword, setShowPassword] = useState(false)
@@ -11,6 +12,9 @@ function LoginPage() {
   const [submitting, setSubmitting] = useState(false)
   const { login } = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
+  const justRegistered = location.state?.registered === true
+  const { t } = useLanguage()
 
   async function handleSubmit(event) {
     event.preventDefault()
@@ -34,30 +38,37 @@ function LoginPage() {
       <aside className="auth-aside">
         <Brand />
         <div className="auth-aside-copy">
-          <span className="eyebrow"><span className="eyebrow-dot" /> Campus support, made simple</span>
-          <h2>A better campus begins with the little things.</h2>
-          <p>Sign in to report an issue, follow its progress, and help keep your campus at its best.</p>
+          <span className="eyebrow"><span className="eyebrow-dot" /> {t('loginAside')}</span>
+          <h2>{t('loginAsideTitle')}</h2>
+          <p>{t('loginAsideDesc')}</p>
         </div>
-        <div className="auth-aside-foot">Campus Maintenance Request System</div>
+        <div className="auth-aside-foot">{t('loginAsideFoot')}</div>
       </aside>
       <section className="auth-main">
         <div className="auth-card">
-          <Brand className="auth-mobile-brand" />
-          <div className="auth-intro">
-            <span className="eyebrow"><span className="eyebrow-dot" /> Welcome back</span>
-            <h1>Sign in to your account</h1>
-            <p>Enter your university account details to continue.</p>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <Brand className="auth-mobile-brand" />
           </div>
+          <div className="auth-intro">
+            <span className="eyebrow"><span className="eyebrow-dot" /> {t('welcomeBack')}</span>
+            <h1>{t('signInTitle')}</h1>
+            <p>{t('signInSubtitle')}</p>
+          </div>
+          {justRegistered && (
+            <div className="form-message success" role="status" style={{ marginBottom: 8 }}>
+              <CheckCircle2 size={16} /> {t('accountCreated')}
+            </div>
+          )}
           <form className="auth-form" onSubmit={handleSubmit}>
             <div className="form-field">
-              <label htmlFor="login-email">Email address</label>
+              <label htmlFor="login-email">{t('emailLabel')}</label>
               <div className="input-wrap">
                 <Mail className="field-icon" size={17} aria-hidden="true" />
-                <input id="login-email" name="email" type="email" autoComplete="email" placeholder="you@university.edu" required />
+                <input id="login-email" name="email" type="email" autoComplete="email" placeholder={t('emailPlaceholder')} required />
               </div>
             </div>
             <div className="form-field">
-              <label htmlFor="login-password">Password</label>
+              <label htmlFor="login-password">{t('passwordLabel')}</label>
               <div className="input-wrap">
                 <LockKeyhole className="field-icon" size={17} aria-hidden="true" />
                 <input
@@ -66,7 +77,7 @@ function LoginPage() {
                   name="password"
                   type={showPassword ? 'text' : 'password'}
                   autoComplete="current-password"
-                  placeholder="Enter your password"
+                  placeholder={t('passwordPlaceholder')}
                   required
                 />
                 <button
@@ -80,17 +91,17 @@ function LoginPage() {
               </div>
             </div>
             <div className="form-options">
-              <label className="checkbox-label"><input name="remember" type="checkbox" /> Remember me</label>
-              <a className="text-link" href="mailto:helpdesk@university.edu?subject=Password%20reset">Forgot password?</a>
+              <label className="checkbox-label"><input name="remember" type="checkbox" /> {t('rememberMe')}</label>
+              <Link className="text-link" to="/forgot-password">{t('forgotPassword')}</Link>
             </div>
             {error && <div className="form-message error" role="alert"><ShieldCheck size={16} />{error}</div>}
             <button className="button button-primary auth-submit" type="submit" disabled={submitting}>
-              {submitting ? 'Signing in…' : 'Log in'}
+              {submitting ? t('signingIn') : t('loginButton')}
             </button>
           </form>
-          <p className="auth-switch">New to CampusCare? <Link to="/register">Create an account</Link></p>
+          <p className="auth-switch">{t('newToCampusCare')} <Link to="/register">{t('createAnAccount')}</Link></p>
           <Link className="text-link" to="/" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 21 }}>
-            <ArrowLeft size={14} /> Back to home
+            <ArrowLeft size={14} /> {t('backToHome')}
           </Link>
         </div>
       </section>

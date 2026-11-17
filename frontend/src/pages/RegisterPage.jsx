@@ -2,8 +2,9 @@ import { useState } from 'react'
 import { ArrowLeft, BriefcaseBusiness, CheckCircle2, Eye, EyeOff, LockKeyhole, Mail, Phone, UserRound } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import Brand from '../components/Brand.jsx'
-import { roleHomePath } from '../context/authRoles.js'
 import useAuth from '../context/useAuth.js'
+import useLanguage from '../context/LanguageContext.jsx'
+
 
 function RegisterPage() {
   const [showPassword, setShowPassword] = useState(false)
@@ -13,6 +14,7 @@ function RegisterPage() {
   const [submitting, setSubmitting] = useState(false)
   const { register } = useAuth()
   const navigate = useNavigate()
+  const { t } = useLanguage()
 
   async function handleSubmit(event) {
     event.preventDefault()
@@ -21,12 +23,12 @@ function RegisterPage() {
     const nextErrors = {}
     const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
-    if (!values.fullName.trim()) nextErrors.fullName = 'Enter your full name.'
-    if (!emailPattern.test(values.email)) nextErrors.email = 'Enter a valid email address.'
-    if (!values.phone.trim()) nextErrors.phone = 'Enter your phone number.'
-    if (!values.department.trim()) nextErrors.department = 'Enter your department.'
-    if (!values.password || values.password.length < 8) nextErrors.password = 'Use at least 8 characters for your password.'
-    if (values.confirmPassword !== values.password) nextErrors.confirmPassword = 'Passwords do not match.'
+    if (!values.fullName.trim()) nextErrors.fullName = t('errFullName')
+    if (!emailPattern.test(values.email)) nextErrors.email = t('errEmail')
+    if (!values.phone.trim()) nextErrors.phone = t('errPhone')
+    if (!values.department.trim()) nextErrors.department = t('errDepartment')
+    if (!values.password || values.password.length < 8) nextErrors.password = t('errPassword')
+    if (values.confirmPassword !== values.password) nextErrors.confirmPassword = t('errConfirmPassword')
 
     setErrors(nextErrors)
     setError('')
@@ -35,7 +37,7 @@ function RegisterPage() {
 
     setSubmitting(true)
     try {
-      const user = await register({
+      await register({
         fullName: values.fullName,
         email: values.email,
         phone: values.phone,
@@ -43,7 +45,7 @@ function RegisterPage() {
         password: values.password,
         confirmPassword: values.confirmPassword,
       })
-      navigate(roleHomePath(user.role), { replace: true })
+      navigate('/login', { replace: true, state: { registered: true } })
     } catch (registrationError) {
       setError(registrationError.message)
       setSubmitting(false)
@@ -59,56 +61,58 @@ function RegisterPage() {
       <aside className="auth-aside">
         <Brand />
         <div className="auth-aside-copy">
-          <span className="eyebrow"><span className="eyebrow-dot" /> Join your campus community</span>
-          <h2>Help us make campus a better place.</h2>
-          <p>Create an account to share maintenance concerns and stay informed as your requests are handled.</p>
+          <span className="eyebrow"><span className="eyebrow-dot" /> {t('registerAside')}</span>
+          <h2>{t('registerAsideTitle')}</h2>
+          <p>{t('registerAsideDesc')}</p>
         </div>
-        <div className="auth-aside-foot">A clear path from report to resolution.</div>
+        <div className="auth-aside-foot">{t('registerAsideFoot')}</div>
       </aside>
       <section className="auth-main">
         <div className="auth-card register-card">
-          <Brand className="auth-mobile-brand" />
-          <div className="auth-intro">
-            <span className="eyebrow"><span className="eyebrow-dot" /> Get started</span>
-            <h1>Create your account</h1>
-            <p>Register with your university details to get started.</p>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <Brand className="auth-mobile-brand" />
           </div>
-          <p className="role-note">Public accounts are automatically registered as Staff.</p>
+          <div className="auth-intro">
+            <span className="eyebrow"><span className="eyebrow-dot" /> {t('getStarted')}</span>
+            <h1>{t('createAccountTitle')}</h1>
+            <p>{t('createAccountSubtitle')}</p>
+          </div>
+          <p className="role-note">{t('roleNote')}</p>
           <form className="auth-form" onSubmit={handleSubmit} noValidate>
             <div className="form-field full-width">
-              <label htmlFor="register-name">Full name</label>
+              <label htmlFor="register-name">{t('fullNameLabel')}</label>
               <div className="input-wrap">
                 <UserRound className="field-icon" size={16} aria-hidden="true" />
-                <input id="register-name" name="fullName" type="text" autoComplete="name" placeholder="Your full name" required aria-describedby={errors.fullName ? 'fullName-error' : undefined} />
+                <input id="register-name" name="fullName" type="text" autoComplete="name" placeholder={t('fullNamePlaceholder')} required aria-describedby={errors.fullName ? 'fullName-error' : undefined} />
               </div>
               {fieldError('fullName')}
             </div>
             <div className="form-field full-width">
-              <label htmlFor="register-email">Email address</label>
+              <label htmlFor="register-email">{t('emailLabel')}</label>
               <div className="input-wrap">
                 <Mail className="field-icon" size={16} aria-hidden="true" />
-                <input id="register-email" name="email" type="email" autoComplete="email" placeholder="you@university.edu" required aria-describedby={errors.email ? 'email-error' : undefined} />
+                <input id="register-email" name="email" type="email" autoComplete="email" placeholder={t('emailPlaceholder')} required aria-describedby={errors.email ? 'email-error' : undefined} />
               </div>
               {fieldError('email')}
             </div>
             <div className="form-field">
-              <label htmlFor="register-phone">Phone number</label>
+              <label htmlFor="register-phone">{t('phoneLabel')}</label>
               <div className="input-wrap">
                 <Phone className="field-icon" size={16} aria-hidden="true" />
-                <input id="register-phone" name="phone" type="tel" autoComplete="tel" placeholder="+1 (555) 000-0000" required aria-describedby={errors.phone ? 'phone-error' : undefined} />
+                <input id="register-phone" name="phone" type="tel" autoComplete="tel" placeholder={t('phonePlaceholder')} required aria-describedby={errors.phone ? 'phone-error' : undefined} />
               </div>
               {fieldError('phone')}
             </div>
             <div className="form-field">
-              <label htmlFor="register-department">Department</label>
+              <label htmlFor="register-department">{t('departmentLabel')}</label>
               <div className="input-wrap">
                 <BriefcaseBusiness className="field-icon" size={16} aria-hidden="true" />
-                <input id="register-department" name="department" type="text" autoComplete="organization-title" placeholder="Your department" required aria-describedby={errors.department ? 'department-error' : undefined} />
+                <input id="register-department" name="department" type="text" autoComplete="organization-title" placeholder={t('departmentPlaceholder')} required aria-describedby={errors.department ? 'department-error' : undefined} />
               </div>
               {fieldError('department')}
             </div>
             <div className="form-field">
-              <label htmlFor="register-password">Password</label>
+              <label htmlFor="register-password">{t('passwordLabel')}</label>
               <div className="input-wrap">
                 <LockKeyhole className="field-icon" size={16} aria-hidden="true" />
                 <input
@@ -117,7 +121,7 @@ function RegisterPage() {
                   name="password"
                   type={showPassword ? 'text' : 'password'}
                   autoComplete="new-password"
-                  placeholder="At least 8 characters"
+                  placeholder={t('passwordHint')}
                   minLength={8}
                   required
                   aria-describedby={errors.password ? 'password-error' : undefined}
@@ -129,7 +133,7 @@ function RegisterPage() {
               {fieldError('password')}
             </div>
             <div className="form-field">
-              <label htmlFor="register-confirm-password">Confirm password</label>
+              <label htmlFor="register-confirm-password">{t('confirmPasswordLabel')}</label>
               <div className="input-wrap">
                 <LockKeyhole className="field-icon" size={16} aria-hidden="true" />
                 <input
@@ -138,7 +142,7 @@ function RegisterPage() {
                   name="confirmPassword"
                   type={showConfirmPassword ? 'text' : 'password'}
                   autoComplete="new-password"
-                  placeholder="Re-enter password"
+                  placeholder={t('confirmPasswordPlaceholder')}
                   required
                   aria-describedby={errors.confirmPassword ? 'confirmPassword-error' : undefined}
                 />
@@ -150,12 +154,12 @@ function RegisterPage() {
             </div>
             {error && <div className="form-message error" role="alert"><CheckCircle2 size={16} />{error}</div>}
             <button className="button button-primary auth-submit" type="submit" disabled={submitting}>
-              {submitting ? 'Creating account…' : 'Create account'}
+              {submitting ? t('creatingAccount') : t('createAccountButton')}
             </button>
           </form>
-          <p className="auth-switch">Already have an account? <Link to="/login">Log in</Link></p>
+          <p className="auth-switch">{t('alreadyHaveAccount')} <Link to="/login">{t('logIn')}</Link></p>
           <Link className="text-link" to="/" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 16 }}>
-            <ArrowLeft size={14} /> Back to home
+            <ArrowLeft size={14} /> {t('backToHome')}
           </Link>
         </div>
       </section>

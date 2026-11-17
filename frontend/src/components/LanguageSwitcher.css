@@ -1,0 +1,33 @@
+.lang-switcher {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 12px;
+  border: 1.5px solid rgba(255, 255, 255, 0.25);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.08);
+  color: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition: background 0.18s, border-color 0.18s;
+  white-space: nowrap;
+}
+.lang-switcher:hover,
+.lang-switcher:focus-visible {
+  background: rgba(255, 255, 255, 0.16);
+  border-color: rgba(255, 255, 255, 0.45);
+}
+
+/* ---- Light-themed variant (for auth pages, homepage header) ---- */
+.lang-switcher.light {
+  border-color: rgba(0, 0, 0, 0.15);
+  background: rgba(0, 0, 0, 0.04);
+  color: #333;
+}
+.lang-switcher.light:hover,
+.lang-switcher.light:focus-visible {
+  background: rgba(0, 0, 0, 0.08);
+  border-color: rgba(0, 0, 0, 0.3);
+}

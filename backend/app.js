@@ -1,17 +1,26 @@
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import express from 'express';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import User from './models/User.js';
 import MaintenanceRequest from './models/MaintenanceRequest.js';
 import { createAuthRoutes } from './routes/authRoutes.js';
 import { createRequestRoutes } from './routes/requestRoutes.js';
 import { createUserRoutes } from './routes/userRoutes.js';
+import { createAdminRoutes } from './routes/adminRoutes.js';
 import verifyRequestOrigin from './middleware/requestOrigin.js';
 import HttpError from './utils/HttpError.js';
 import { isWriteConcernError, summarizeApiError } from './utils/databaseErrors.js';
 import { getAllowedFrontendOrigins } from './utils/frontendOrigins.js';
 
-export function createApp({ UserModel = User, RequestModel = MaintenanceRequest } = {}) {
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+export function createApp({
+  UserModel = User,
+  RequestModel = MaintenanceRequest,
+  passwordResetMailer,
+} = {}) {
   const app = express();
   const allowedFrontendOrigins = getAllowedFrontendOrigins();
 
@@ -22,7 +31,11 @@ export function createApp({ UserModel = User, RequestModel = MaintenanceRequest 
   }));
   app.use(express.json({ limit: '10kb' }));
   app.use(cookieParser());
-  app.use('/api', (req, res, next) => {
+
+  // Serve uploaded files statically
+  app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
+  app.use((req, res, next) => {
     res.set('Cache-Control', 'no-store');
     next();
   });
@@ -31,9 +44,10 @@ export function createApp({ UserModel = User, RequestModel = MaintenanceRequest 
   app.get('/api/health', (req, res) => {
     res.status(200).json({ status: 'ok' });
   });
-  app.use('/api/auth', createAuthRoutes(UserModel));
+  app.use('/api/auth', createAuthRoutes(UserModel, passwordResetMailer));
   app.use('/api/requests', createRequestRoutes(UserModel, RequestModel));
   app.use('/api/users', createUserRoutes(UserModel));
+  app.use('/api/admin', createAdminRoutes(UserModel, RequestModel));
 
   app.use((req, res, next) => next(new HttpError(404, 'Route not found.')));
   app.use((error, req, res, next) => {
@@ -51,6 +65,12 @@ export function createApp({ UserModel = User, RequestModel = MaintenanceRequest 
     }
     if (error?.type === 'entity.parse.failed') {
       return res.status(400).json({ message: 'Request body must contain valid JSON.' });
+    }
+    if (error?.code === 'LIMIT_FILE_SIZE') {
+      return res.status(413).json({ message: 'The attachment must be 5 MB or smaller.' });
+    }
+    if (error?.code === 'LIMIT_UNEXPECTED_FILE' || error?.code === 'LIMIT_FILE_COUNT') {
+      return res.status(400).json({ message: 'Only one attachment is allowed.' });
     }
 
     const diagnostic = summarizeApiError(error);

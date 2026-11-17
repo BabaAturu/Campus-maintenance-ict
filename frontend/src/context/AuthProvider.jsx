@@ -31,9 +31,10 @@ function AuthProvider({ children }) {
 
   const register = useCallback(async (details) => {
     const result = await authApi.register(details)
-    setUser(result.user)
+    // Do NOT set user here — user must log in manually after registering
     return result.user
   }, [])
+
 
   const logout = useCallback(async () => {
     await authApi.logout()

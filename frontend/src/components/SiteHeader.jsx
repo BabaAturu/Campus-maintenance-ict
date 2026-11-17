@@ -2,16 +2,20 @@ import { useState } from 'react'
 import { Menu, X } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import Brand from './Brand.jsx'
-
-const links = [
-  { label: 'Home', href: '#home' },
-  { label: 'About', href: '#about' },
-  { label: 'Services', href: '#services' },
-  { label: 'Contact', href: '#contact' },
-]
+import LanguageSwitcher from './LanguageSwitcher.jsx'
+import ThemeToggle from './ThemeToggle.jsx'
+import useLanguage from '../context/LanguageContext.jsx'
 
 function SiteHeader() {
   const [menuOpen, setMenuOpen] = useState(false)
+  const { t } = useLanguage()
+
+  const links = [
+    { label: t('home'), href: '#home' },
+    { label: t('about'), href: '#about' },
+    { label: t('services'), href: '#services' },
+    { label: t('contact'), href: '#contact' },
+  ]
 
   return (
     <header className="site-header">
@@ -39,11 +43,13 @@ function SiteHeader() {
           ))}
         </nav>
         <div className="nav-actions">
+          <ThemeToggle />
+          <LanguageSwitcher className="light" />
           <Link className="button button-outline" to="/login">
-            Log in
+            {t('logIn')}
           </Link>
           <Link className="button button-primary" to="/register">
-            Register
+            {t('register')}
           </Link>
         </div>
       </div>

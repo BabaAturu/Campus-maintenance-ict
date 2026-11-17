@@ -12,6 +12,8 @@ export const REQUEST_CATEGORIES = Object.freeze([
 
 export const REQUEST_PRIORITIES = Object.freeze(['LOW', 'MEDIUM', 'HIGH', 'URGENT']);
 
+export const INITIAL_REQUEST_STATUS = 'PENDING';
+
 export const REQUEST_STATUSES = Object.freeze([
   'SUBMITTED',
   'PENDING',
@@ -33,7 +35,7 @@ const maintenanceRequestSchema = new mongoose.Schema(
     status: {
       type: String,
       enum: REQUEST_STATUSES,
-      default: 'SUBMITTED',
+      default: INITIAL_REQUEST_STATUS,
       required: true,
     },
     requester: {
@@ -45,6 +47,10 @@ const maintenanceRequestSchema = new mongoose.Schema(
     assignedTechnician: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
+      default: null,
+    },
+    attachmentUrl: {
+      type: String,
       default: null,
     },
   },

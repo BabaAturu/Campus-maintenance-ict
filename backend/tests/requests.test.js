@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict';
 import { after, before, test } from 'node:test';
 import bcrypt from 'bcryptjs';
+import { unlink } from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
 import createApp from '../app.js';
+import MaintenanceRequest, { INITIAL_REQUEST_STATUS } from '../models/MaintenanceRequest.js';
 import { USER_ROLES } from '../models/User.js';
 import { signAccessToken } from '../utils/auth.js';
 
@@ -44,7 +47,7 @@ class FakeRequest {
       ...values,
       _id: id,
       id,
-      status: 'SUBMITTED',
+      status: values.status,
       createdAt: new Date(),
       updatedAt: new Date(),
     };
@@ -69,6 +72,10 @@ let server;
 let baseUrl;
 const origin = process.env.FRONTEND_ORIGIN;
 
+test('new MaintenanceRequest documents default to the initial Pending status', () => {
+  assert.equal(new MaintenanceRequest().status, INITIAL_REQUEST_STATUS);
+});
+
 before(async () => {
   FakeUser.records.clear();
   FakeRequest.records.clear();
@@ -86,14 +93,15 @@ after(async () => {
 });
 
 function request(path, { method = 'GET', body, cookie } = {}) {
+  const isFormData = body instanceof FormData;
   return fetch(`${baseUrl}${path}`, {
     method,
     headers: {
       Origin: origin,
-      ...(body ? { 'Content-Type': 'application/json' } : {}),
+      ...(body && !isFormData ? { 'Content-Type': 'application/json' } : {}),
       ...(cookie ? { Cookie: cookie } : {}),
     },
-    ...(body ? { body: JSON.stringify(body) } : {}),
+    ...(body ? { body: isFormData ? body : JSON.stringify(body) } : {}),
   });
 }
 
@@ -153,7 +161,8 @@ test('Staff can register, log in, submit, and retrieve only their own requests',
   });
   assert.equal(created.status, 201);
   const { request: saved } = await created.json();
-  assert.equal(saved.status, 'SUBMITTED');
+  assert.equal(saved.status, INITIAL_REQUEST_STATUS);
+  assert.equal(FakeRequest.records.get(saved._id).status, INITIAL_REQUEST_STATUS);
   assert.equal(saved.requester, 'staff-1');
   assert.equal(saved.category, 'Computer Hardware');
 
@@ -203,6 +212,55 @@ test('request routes require authentication and reject missing or invalid fields
 
   const invalidId = await request('/api/requests/not-an-object-id', { cookie });
   assert.equal(invalidId.status, 400);
+});
+
+test('Staff can attach one supported file to a request and retrieve it', async () => {
+  const cookie = await registerAndLogin('attachment-request@example.edu');
+  const formData = new FormData();
+  Object.entries(validRequest).forEach(([key, value]) => formData.append(key, value));
+  formData.append('attachment', new Blob(['%PDF-1.4 test attachment'], { type: 'application/pdf' }), 'proof.pdf');
+
+  const response = await request('/api/requests', {
+    method: 'POST',
+    cookie,
+    body: formData,
+  });
+  assert.equal(response.status, 201);
+  const { request: saved } = await response.json();
+  assert.match(saved.attachmentUrl, /^\/uploads\/[\w-]+\.pdf$/);
+
+  try {
+    const uploadedFile = await fetch(`${baseUrl}${saved.attachmentUrl}`);
+    assert.equal(uploadedFile.status, 200);
+    assert.equal(await uploadedFile.text(), '%PDF-1.4 test attachment');
+  } finally {
+    await unlink(fileURLToPath(new URL(`../uploads/${saved.attachmentUrl.split('/').pop()}`, import.meta.url)));
+  }
+});
+
+test('request attachment rejects unsupported types and files larger than 5 MB', async () => {
+  const cookie = await registerAndLogin('invalid-attachment@example.edu');
+  const unsupported = new FormData();
+  Object.entries(validRequest).forEach(([key, value]) => unsupported.append(key, value));
+  unsupported.append('attachment', new Blob(['not an image'], { type: 'text/plain' }), 'notes.txt');
+  const unsupportedResponse = await request('/api/requests', {
+    method: 'POST',
+    cookie,
+    body: unsupported,
+  });
+  assert.equal(unsupportedResponse.status, 400);
+  assert.match((await unsupportedResponse.json()).message, /JPG, PNG, GIF, WEBP, or PDF/i);
+
+  const oversized = new FormData();
+  Object.entries(validRequest).forEach(([key, value]) => oversized.append(key, value));
+  oversized.append('attachment', new Blob([new Uint8Array(5 * 1024 * 1024 + 1)], { type: 'application/pdf' }), 'large.pdf');
+  const oversizedResponse = await request('/api/requests', {
+    method: 'POST',
+    cookie,
+    body: oversized,
+  });
+  assert.equal(oversizedResponse.status, 413);
+  assert.match((await oversizedResponse.json()).message, /5 MB or smaller/i);
 });
 
 test('authenticated non-Staff users cannot use Staff request endpoints', async () => {

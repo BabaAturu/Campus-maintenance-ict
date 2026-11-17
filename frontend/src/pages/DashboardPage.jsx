@@ -34,7 +34,7 @@ function DashboardPage() {
     <main className="auth-page">
       <section className="auth-main">
         <div className="auth-card">
-          <Brand />
+          <div className="dashboard-auth-heading"><Brand /></div>
           <div className="auth-intro" style={{ marginTop: 32 }}>
             <span className="eyebrow"><span className="eyebrow-dot" /> {roleLabels[user.role]}</span>
             <h1>Welcome, {user.fullName}</h1>

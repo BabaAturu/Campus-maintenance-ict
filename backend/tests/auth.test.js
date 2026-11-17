@@ -53,6 +53,45 @@ class FakeUser {
     return FakeUser.records.get(String(id)) ?? null;
   }
 
+  static findOneAndUpdate(filter, update) {
+    const user = [...FakeUser.records.values()].find((item) => {
+      if (filter.email && item.email !== filter.email) return false;
+      if (filter._id && item._id !== filter._id) return false;
+      if (filter.isActive !== undefined && item.isActive !== filter.isActive) return false;
+      if (
+        filter.passwordResetOtpExpiresAt?.$gt &&
+        (!item.passwordResetOtpExpiresAt ||
+          item.passwordResetOtpExpiresAt <= filter.passwordResetOtpExpiresAt.$gt)
+      ) return false;
+      if (
+        filter.passwordResetOtpAttempts?.$lt !== undefined &&
+        (item.passwordResetOtpAttempts ?? 0) >= filter.passwordResetOtpAttempts.$lt
+      ) return false;
+      if (
+        filter.passwordResetTokenHash &&
+        item.passwordResetTokenHash !== filter.passwordResetTokenHash
+      ) return false;
+      if (
+        filter.passwordResetTokenExpiresAt?.$gt &&
+        (!item.passwordResetTokenExpiresAt ||
+          item.passwordResetTokenExpiresAt <= filter.passwordResetTokenExpiresAt.$gt)
+      ) return false;
+      return true;
+    }) ?? null;
+
+    if (user && update.$inc) {
+      for (const [field, amount] of Object.entries(update.$inc)) {
+        user[field] = (user[field] ?? 0) + amount;
+      }
+    }
+    if (user && update.$set) Object.assign(user, update.$set);
+    if (user && update.$unset) {
+      for (const field of Object.keys(update.$unset)) delete user[field];
+    }
+
+    return { select: async () => user };
+  }
+
   static async find() {
     return [...FakeUser.records.values()];
   }
@@ -71,10 +110,19 @@ class FakeUser {
 let server;
 let baseUrl;
 const origin = process.env.FRONTEND_ORIGIN;
+const deliveredResetCodes = [];
+const testPasswordResetMailer = {
+  isConfigured: () => true,
+  send: async (email, otp) => deliveredResetCodes.push({ email, otp }),
+};
 
 before(async () => {
   FakeUser.records.clear();
-  server = createApp({ UserModel: FakeUser }).listen(0, '127.0.0.1');
+  deliveredResetCodes.length = 0;
+  server = createApp({
+    UserModel: FakeUser,
+    passwordResetMailer: testPasswordResetMailer,
+  }).listen(0, '127.0.0.1');
   await new Promise((resolve, reject) => {
     server.once('listening', resolve);
     server.once('error', reject);
@@ -181,6 +229,162 @@ test('login, current user, logout, and invalid credentials use the HttpOnly JWT 
   assert.equal(afterLogout.status, 401);
 });
 
+test('password reset uses an emailed OTP, hides account existence, hashes credentials, and consumes the reset token', async () => {
+  const email = 'password-reset@example.edu';
+  await request('/api/auth/register', { method: 'POST', body: profile(email) });
+
+  const requested = await request('/api/auth/forgot-password', {
+    method: 'POST',
+    body: { email },
+  });
+  assert.equal(requested.status, 200);
+  const requestedBody = await requested.json();
+  assert.doesNotMatch(JSON.stringify(requestedBody), /\b\d{6}\b/);
+  assert.equal(requestedBody.message, 'If an active account uses that email, a verification code will be sent.');
+
+  const unknownAccount = await request('/api/auth/forgot-password', {
+    method: 'POST',
+    body: { email: 'not-registered@example.edu' },
+  });
+  assert.equal(unknownAccount.status, requested.status);
+  assert.deepEqual(await unknownAccount.json(), requestedBody);
+
+  const user = FakeUser.records.get(
+    [...FakeUser.records.values()].find((item) => item.email === email)._id,
+  );
+  const sentCode = deliveredResetCodes.find((item) => item.email === email)?.otp;
+  assert.match(sentCode, /^\d{6}$/);
+  assert.notEqual(user.passwordResetOtpHash, sentCode);
+  assert.equal(user.passwordResetOtpHash.length, 64);
+  assert.ok(user.passwordResetOtpExpiresAt.getTime() > Date.now());
+  assert.ok(user.passwordResetOtpExpiresAt.getTime() <= Date.now() + 10 * 60 * 1000);
+
+  const invalidCode = await request('/api/auth/verify-reset-otp', {
+    method: 'POST',
+    body: { email, otp: '000000' },
+  });
+  assert.equal(invalidCode.status, 400);
+  assert.equal(user.passwordResetOtpAttempts, 1);
+
+  const verified = await request('/api/auth/verify-reset-otp', {
+    method: 'POST',
+    body: { email, otp: sentCode },
+  });
+  assert.equal(verified.status, 200);
+  const { resetToken } = await verified.json();
+  assert.equal(typeof resetToken, 'string');
+  assert.doesNotMatch(resetToken, new RegExp(sentCode));
+  assert.notEqual(user.passwordResetTokenHash, resetToken);
+
+  const reset = await request('/api/auth/reset-password', {
+    method: 'POST',
+    body: {
+      email,
+      resetToken,
+      password: 'a-new-secure-password',
+      confirmPassword: 'a-new-secure-password',
+    },
+  });
+  assert.equal(reset.status, 200);
+  assert.equal(await bcrypt.compare('a-new-secure-password', user.password), true);
+  assert.equal(user.passwordResetOtpHash, undefined);
+  assert.equal(user.passwordResetOtpExpiresAt, undefined);
+  assert.equal(user.passwordResetTokenHash, undefined);
+  assert.equal(user.passwordResetTokenExpiresAt, undefined);
+
+  const replay = await request('/api/auth/reset-password', {
+    method: 'POST',
+    body: {
+      email,
+      resetToken,
+      password: 'another-secure-password',
+      confirmPassword: 'another-secure-password',
+    },
+  });
+  assert.equal(replay.status, 400);
+
+  const oldPasswordLogin = await request('/api/auth/login', {
+    method: 'POST',
+    body: { email, password: 'a-secure-test-password' },
+  });
+  assert.equal(oldPasswordLogin.status, 401);
+  const newPasswordLogin = await request('/api/auth/login', {
+    method: 'POST',
+    body: { email, password: 'a-new-secure-password' },
+  });
+  assert.equal(newPasswordLogin.status, 200);
+});
+
+test('password reset OTP expires and locks after five incorrect attempts', async () => {
+  const email = 'password-reset-attempts@example.edu';
+  await request('/api/auth/register', { method: 'POST', body: profile(email) });
+  await request('/api/auth/forgot-password', { method: 'POST', body: { email } });
+
+  const user = [...FakeUser.records.values()].find((item) => item.email === email);
+  const sentCode = deliveredResetCodes.find((item) => item.email === email)?.otp;
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const response = await request('/api/auth/verify-reset-otp', {
+      method: 'POST',
+      body: { email, otp: sentCode === '000000' ? '111111' : '000000' },
+    });
+    assert.equal(response.status, 400);
+  }
+  assert.equal(user.passwordResetOtpAttempts, 5);
+
+  const locked = await request('/api/auth/verify-reset-otp', {
+    method: 'POST',
+    body: { email, otp: sentCode },
+  });
+  assert.equal(locked.status, 400);
+
+  user.passwordResetOtpExpiresAt = new Date(Date.now() - 1);
+  const expired = await request('/api/auth/verify-reset-otp', {
+    method: 'POST',
+    body: { email, otp: sentCode },
+  });
+  assert.equal(expired.status, 400);
+});
+
+test('password reset request endpoint is rate-limited', async () => {
+  const rateLimitServer = createApp({
+    UserModel: FakeUser,
+    passwordResetMailer: testPasswordResetMailer,
+  }).listen(0, '127.0.0.1');
+  await new Promise((resolve, reject) => {
+    rateLimitServer.once('listening', resolve);
+    rateLimitServer.once('error', reject);
+  });
+
+  try {
+    const rateLimitUrl = `http://127.0.0.1:${rateLimitServer.address().port}/api/auth/forgot-password`;
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      const response = await fetch(rateLimitUrl, {
+        method: 'POST',
+        headers: {
+          Origin: origin,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email: `rate-limit-${attempt}@example.edu` }),
+      });
+      assert.equal(response.status, 200);
+    }
+
+    const limited = await fetch(rateLimitUrl, {
+      method: 'POST',
+      headers: {
+        Origin: origin,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ email: 'rate-limit-over@example.edu' }),
+    });
+    assert.equal(limited.status, 429);
+  } finally {
+    await new Promise((resolve, reject) => {
+      rateLimitServer.close((error) => error ? reject(error) : resolve());
+    });
+  }
+});
+
 test('protected user APIs reject anonymous and Staff requests; Admin can create privileged accounts and manage roles', async () => {
   const anonymous = await request('/api/users');
   assert.equal(anonymous.status, 401);
@@ -203,6 +407,7 @@ test('protected user APIs reject anonymous and Staff requests; Admin can create 
     body: { email: admin.email, password: 'admin-test-password' },
   });
   const adminCookie = cookieFrom(adminLogin);
+  const usersBeforeTechnicianAccounts = FakeUser.records.size;
 
   const teamLeadResponse = await request('/api/users/create-team-lead', {
     method: 'POST',
@@ -223,7 +428,10 @@ test('protected user APIs reject anonymous and Staff requests; Admin can create 
 
   const usersResponse = await request('/api/users', { cookie: adminCookie });
   assert.equal(usersResponse.status, 200);
-  assert.equal((await usersResponse.json()).users.length, 5);
+  assert.equal(
+    (await usersResponse.json()).users.length,
+    usersBeforeTechnicianAccounts + 2,
+  );
 
   const roleResponse = await request(`/api/users/${technician.id}/role`, {
     method: 'PATCH',

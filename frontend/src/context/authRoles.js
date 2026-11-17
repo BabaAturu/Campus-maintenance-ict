@@ -3,7 +3,7 @@ export function roleHomePath(role) {
     case 'STAFF':
       return '/dashboard/staff'
     case 'ICT_ADMIN':
-      return '/dashboard/ict-admin'
+      return '/admin/dashboard'
     case 'ICT_TECHNICIAN_TEAM_LEAD':
       return '/dashboard/team-lead'
     case 'ICT_TECHNICIAN':

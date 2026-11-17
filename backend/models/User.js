@@ -29,6 +29,12 @@ const userSchema = new mongoose.Schema(
     },
     isActive: { type: Boolean, default: true, required: true },
     isInitialAdmin: { type: Boolean, default: false, select: false },
+    passwordResetOtpHash: { type: String, select: false },
+    passwordResetOtpExpiresAt: { type: Date, select: false },
+    passwordResetOtpAttempts: { type: Number, default: 0, select: false },
+    passwordResetOtpLastSentAt: { type: Date, select: false },
+    passwordResetTokenHash: { type: String, select: false },
+    passwordResetTokenExpiresAt: { type: Date, select: false },
   },
   { timestamps: true },
 );

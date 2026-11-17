@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 import MaintenanceRequest, {
+  INITIAL_REQUEST_STATUS,
   REQUEST_CATEGORIES,
   REQUEST_PRIORITIES,
 } from '../models/MaintenanceRequest.js';
@@ -54,12 +55,18 @@ export function createRequestController(RequestModel = MaintenanceRequest) {
   return {
     create: async (req, res) => {
       const details = validateRequest(req.body ?? {});
+      const attachmentUrl = req.file
+        ? `/uploads/${req.file.filename}`
+        : null;
       const request = await RequestModel.create({
         ...details,
         requester: requesterId(req.user),
+        attachmentUrl,
+        status: INITIAL_REQUEST_STATUS,
       });
       return res.status(201).json({ request });
     },
+
 
     listMine: async (req, res) => {
       const requests = await RequestModel.find({ requester: requesterId(req.user) })

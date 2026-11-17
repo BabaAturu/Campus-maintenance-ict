@@ -17,6 +17,15 @@ const categories = [
   'ICT Security & Other Technical Issues',
 ]
 const priorities = ['LOW', 'MEDIUM', 'HIGH', 'URGENT']
+const attachmentTypes = new Map([
+  ['.jpg', 'image/jpeg'],
+  ['.jpeg', 'image/jpeg'],
+  ['.png', 'image/png'],
+  ['.gif', 'image/gif'],
+  ['.webp', 'image/webp'],
+  ['.pdf', 'application/pdf'],
+])
+const maxAttachmentSize = 5 * 1024 * 1024
 
 export function validateRequestFields(values) {
   const errors = {}
@@ -33,8 +42,14 @@ export function validateRequestFields(values) {
   }
 
   const attachment = values.attachment
-  if (attachment && attachment.size > 0 && !attachment.type?.startsWith('image/')) {
-    errors.attachment = 'Choose an image file for the attachment.'
+  if (attachment && attachment.size > 0) {
+    const extension = attachment.name?.slice(attachment.name.lastIndexOf('.')).toLowerCase()
+    const expectedType = attachmentTypes.get(extension)
+    if (!expectedType || (attachment.type && attachment.type !== expectedType)) {
+      errors.attachment = 'Choose a JPG, PNG, GIF, WEBP, or PDF file.'
+    } else if (attachment.size > maxAttachmentSize) {
+      errors.attachment = 'The attachment must be 5 MB or smaller.'
+    }
   }
 
   return errors
